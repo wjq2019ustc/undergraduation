@@ -14,6 +14,8 @@ from qns.utils.rnd import get_rand, get_choice
 # 加了密钥池容量的概念
 
 capacity = 2000
+min_requirement = 100
+threshold_key = 300
 
 
 class QubitWithError(Qubit):
@@ -39,6 +41,8 @@ class BB84SendApp(Application):
         self.measure_list = {}
 
         self.pool_capacity = capacity  # 密钥池容量
+        self.min_key = min_requirement
+        self.threshold_key = threshold_key
         self.current_pool = 0   # 当前密钥池存储量
         self.succ_key_pool = {}
         self.fail_number = 0
@@ -133,6 +137,8 @@ class BB84RecvApp(Application):
         self.basis_list = {}
         self.measure_list = {}
         self.pool_capacity = capacity  # 密钥池容量
+        self.min_key = min_requirement
+        self.threshold_key = threshold_key
         self.current_pool = 0   # 当前密钥池存储量
 
         self.succ_key_pool = {}

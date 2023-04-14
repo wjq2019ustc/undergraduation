@@ -1,12 +1,12 @@
 from qns.network.network import QuantumNetwork
-from deal_bit_flip_bb84 import BB84RecvApp, BB84SendApp
+from threshold_bb84 import BB84RecvApp, BB84SendApp
 from routing_packet import SendRoutingApp, RecvRoutingApp, start_time_order
 from qns.entity.cchannel.cchannel import ClassicChannel
 from qns.simulator.simulator import Simulator
 from qns.network.topology import RandomTopology
 from qns.network.topology.topo import ClassicTopology
 from qns.network.route import DijkstraRouteAlgorithm
-from create_request_no_delay import random_requests
+from create_request_ton import random_requests
 import numpy as np
 import math
 
@@ -43,6 +43,7 @@ for node_num in [10]:   # , 100, 150, 200, 250
         net_bb84sapps = {}
         net_succ_request = {}
         net_fail_request = {}
+        routing_info = {}
         sendlist = []
         recvlist = []
         for node in net.nodes:
@@ -50,6 +51,9 @@ for node_num in [10]:   # , 100, 150, 200, 250
             net_bb84rapps[node.name] = []
             net_succ_request[node.name] = []
             net_fail_request[node.name] = []
+            routing_info[node.name] = {}
+            for n in net.nodes:
+                routing_info[node.name][n.name] = None  # initialize routing table
         for qchannel in net.qchannels:
             restrict[qchannel.name] = False
             (src, dest) = qchannel.node_list
@@ -65,17 +69,17 @@ for node_num in [10]:   # , 100, 150, 200, 250
             net_bb84rapps[src.name].append(recv)
             net_bb84rapps[dest.name].append(recv)
         net.build_route()
-        net_request = random_requests(nodes=net.nodes, number=request_num, start_time=s_time, end_time=e_time, start_request=s_request,
-                                      end_request=e_request, start_delay=s_delay, end_delay=e_delay, allow_overlay=True)
+        random_requests(nodes=net.nodes, number=request_num, start_time=s_time, end_time=e_time, start_request=s_request,
+                        end_request=e_request, start_delay=s_delay, end_delay=e_delay, allow_overlay=True)
 
         # print(net.requests)
 
         for node in net.nodes:
-            start_time_order(net_request[node.name], 0, len(net_request[node.name])-1)
-            sendre = SendRoutingApp(net=net, node=node, restrict=restrict, restrict_time=restrict_time, request_management=request_management,
-                                    fail_request=net_fail_request[node.name], request_list=net_request[node.name])
-            recvre = RecvRoutingApp(net=net, node=node, bb84rapps=net_bb84rapps[node.name], bb84sapps=net_bb84sapps[node.name], restrict=restrict, restrict_time=restrict_time,
-                                    request_management=request_management, already_accept=[], succ_request=net_succ_request[node.name])
+            start_time_order(node.requests, 0, len(node.requests)-1)
+            sendre = SendRoutingApp(bb84rapps=net_bb84rapps[node.name], bb84sapps=net_bb84sapps[node.name], fail_request=net_fail_request[node.name],
+                                    request_management=request_management, routing_info=routing_info[node.name])
+            recvre = RecvRoutingApp(node=node, bb84rapps=net_bb84rapps[node.name], bb84sapps=net_bb84sapps[node.name], request_management=request_management,
+                                    succ_request=net_succ_request[node.name], routing_info=routing_info[node.name])
             node.add_apps(sendre)
             node.add_apps(recvre)
         net.install(s)

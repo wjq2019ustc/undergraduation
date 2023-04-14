@@ -4,14 +4,14 @@ from qns.entity import QNode
 from qns.network.requests import Request
 
 
-def random_requests(nodes: list[QNode], number: int, start_time: float, end_time: float, start_request: int = 0, end_request: int = 2000,
+def random_requests(nodes: list[QNode], number: int, start_time: float, end_time: float, start_request: int = 0, end_request: int = 2000, start_delay: float = 0, end_delay: float = float('inf'),
                     allow_overlay: bool = False):
     # 修改：加入了请求下发时间、请求密钥量以及延时要求
     used_nodes: list[int] = []
     nnodes = len(nodes)
-    request_list = {}
-    for node in nodes:
-        request_list[node.name] = []
+    #   request_list = {}
+    #   for node in nodes:
+    #       request_list[node.name] = []
     if number < 1:
         raise QNSNetworkError("number of requests should be large than 1")
 
@@ -42,7 +42,9 @@ def random_requests(nodes: list[QNode], number: int, start_time: float, end_time
         attr["start time"] = Time(sec=t)
         re = get_randint(start_request, end_request)
         attr["key requirement"] = re
-        attr["request times"] = 1
+        de = get_rand(start_delay, end_delay)
+        attr["delay"] = de
+        #   attr["request times"] = 1
         req = Request(src=src, dest=dest, attr=attr)
         # request_list[i]["src"] = src
         # request_list[i]["dest"] = dest
@@ -52,11 +54,11 @@ def random_requests(nodes: list[QNode], number: int, start_time: float, end_time
         # print(re.attr for re in src.requests)
         # dest.add_request(req)
         print(src, dest, req.attr)
-        request_list[src.name].append(req)
+        src.requests.append(req)
+        #   request_list[src.name].append(req)
     #   for node in nodes:
     #       for i in request_list[node.name]:
     #           print(i.src, i.dest, i.attr)
-    return request_list
 
 
 class QNSNetworkError(Exception):
