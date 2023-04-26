@@ -4,6 +4,9 @@ from qns.entity import QNode
 from qns.network.requests import Request
 
 
+time_accuracy = 100000
+
+
 def random_requests(nodes: list[QNode], number: int, start_time: float, end_time: float, start_request: int = 0, end_request: int = 2000, start_delay: float = 0, end_delay: float = float('inf'),
                     allow_overlay: bool = False):
     # 修改：加入了请求下发时间、请求密钥量以及延时要求
@@ -36,14 +39,14 @@ def random_requests(nodes: list[QNode], number: int, start_time: float, end_time
                 used_nodes.append(dest_idx)
             break
         attr: dict = {}
-        src = nodes[src_idx]
+        src: QNode = nodes[src_idx]
         dest = nodes[dest_idx]
         t = get_rand(start_time, end_time)
         attr["start time"] = Time(sec=t)
         re = get_randint(start_request, end_request)
         attr["key requirement"] = re
         de = get_rand(start_delay, end_delay)
-        attr["delay"] = de
+        attr["delay"] = de * time_accuracy
         #   attr["request times"] = 1
         req = Request(src=src, dest=dest, attr=attr)
         # request_list[i]["src"] = src

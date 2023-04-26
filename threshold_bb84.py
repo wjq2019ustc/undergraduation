@@ -7,6 +7,7 @@ from qns.models.qubit.const import BASIS_X, BASIS_Z, \
 from qns.simulator.event import Event, func_to_event
 from qns.simulator.simulator import Simulator
 from qns.models.qubit import Qubit
+from routing_packet import SendRoutingApp
 
 import numpy as np
 
@@ -14,8 +15,7 @@ from qns.utils.rnd import get_rand, get_choice
 # 加了密钥池容量的概念
 
 capacity = 2000
-min_requirement = 100
-threshold_key = 300
+min_requirement = 20
 
 
 class QubitWithError(Qubit):
@@ -39,10 +39,13 @@ class BB84SendApp(Application):
         self.qubit_list = {}
         self.basis_list = {}
         self.measure_list = {}
+        self.waiting_length_queue = []
+        self.waiting_msg_queue = []
+        #   self.t_start = 0
+        #   self.t_end = 0
 
         self.pool_capacity = capacity  # 密钥池容量
         self.min_key = min_requirement
-        self.threshold_key = threshold_key
         self.current_pool = 0   # 当前密钥池存储量
         self.succ_key_pool = {}
         self.fail_number = 0
@@ -87,13 +90,19 @@ class BB84SendApp(Application):
             self.succ_key_pool[id] = self.measure_list[id]
             if self.current_pool < self.pool_capacity:  # 当去除满足的请求所需密钥后，再向密钥池填充
                 self.current_pool += 1
-                flag = True
+                if len(self.waiting_length_queue) > 0:
+                    if self.current_pool-self.min_key > self.waiting_length_queue[0]:
+                        self.waiting_length_queue.pop(0)
+                        sendapp = self._node.get_apps(SendRoutingApp).pop(0)
+                        mssg = self.waiting_msg_queue.pop(0)
+                        event = func_to_event(self._simulator.tc, sendapp.send_app_packet, info=mssg, qchannel=self.qchannel)
+                        self._simulator.add_event(event)
         else:
             # log.info(f"[{self._simulator.current_time}] src check {id} basis fail")
             self.fail_number += 1
 
         packet = ClassicPacket(msg={"id": id, "basis": basis_src,
-                               "ret": self.measure_list[id], "flag": flag}, src=self._node, dest=self.dest)
+                               "ret": self.measure_list[id]}, src=self._node, dest=self.dest)
         self.cchannel.send(packet, next_hop=self.dest)
         return True
 
@@ -138,11 +147,12 @@ class BB84RecvApp(Application):
         self.measure_list = {}
         self.pool_capacity = capacity  # 密钥池容量
         self.min_key = min_requirement
-        self.threshold_key = threshold_key
         self.current_pool = 0   # 当前密钥池存储量
-
+        self.waiting_length_queue = []
+        self.waiting_msg_queue = []
         self.succ_key_pool = {}
         self.fail_number = 0
+        self.time_flag = 0
 
         self.add_handler(self.handleQuantumPacket, [RecvQubitPacket], [self.qchannel])
         self.add_handler(self.handleClassicPacket, [RecvClassicPacket], [self.cchannel])
@@ -160,6 +170,7 @@ class BB84RecvApp(Application):
         if id is None:  # request packet
             return False
         basis_src = msg.get("basis")
+        self.time_flag = event.t.time_slot
 
         # qubit = self.qubit_list[id]
         basis_dest = "Z" if (self.basis_list[id] == BASIS_Z).all() else "X"
@@ -170,9 +181,15 @@ class BB84RecvApp(Application):
         if basis_dest == basis_src and ret_dest == ret_src:
             # log.info(f"[{self._simulator.current_time}] dest check {id} basis succ")
             self.succ_key_pool[id] = self.measure_list[id]
-            flag = msg.get("flag")
-            if flag:  # 当去除满足的请求所需密钥后，再向密钥池填充
+            if self.current_pool < self.pool_capacity:  # 当去除满足的请求所需密钥后，再向密钥池填充
                 self.current_pool += 1
+                if len(self.waiting_length_queue) > 0:
+                    if self.current_pool-self.min_key >= self.waiting_length_queue[0]:
+                        self.waiting_length_queue.pop(0)
+                        sendapp = self._node.get_apps(SendRoutingApp).pop(0)
+                        mssg = self.waiting_msg_queue.pop(0)
+                        event = func_to_event(self._simulator.tc, sendapp.send_app_packet, info=mssg, qchannel=self.qchannel)
+                        self._simulator.add_event(event)
         else:
             # log.info(f"[{self._simulator.current_time}] dest check {id} basis fail")
             self.fail_number += 1
